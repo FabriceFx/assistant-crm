@@ -21,9 +21,6 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/" + 
 /**
  * Page d'accueil du module complémentaire.
  */
-/**
- * Page d'accueil du module complémentaire.
- */
 function buildHomepage(e) {
   try {
     const card = CardService.newCardBuilder();
@@ -114,12 +111,42 @@ function buildContextualCard(e) {
 
     const card = CardService.newCardBuilder();
 
-    // En-tête de la carte
+    // 1. En-tête de la carte simplifié
     card.setHeader(CardService.newCardHeader()
       .setTitle(String(analysis.categorie || "Dossier Client"))
-      .setSubtitle("Sentiment : " + String(analysis.sentiment || "Neutre")));
+      .setSubtitle(String(sender.split('<')[0].trim())) // Affiche le nom du client en sous-titre
+    );
 
-    const bizSection = CardService.newCardSection().setHeader('📌 Infos Dossier');
+    // --- NOUVEAU : 2. Section Indicateurs Visuels ---
+    const indicateurSection = CardService.newCardSection();
+    
+    // Logique de coloration pour l'urgence
+    const urgenceRaw = String(analysis.urgence || "Normale").toLowerCase();
+    let urgenceHtml = "";
+    
+    if (urgenceRaw.includes("haute") || urgenceRaw.includes("urgent") || urgenceRaw.includes("critique")) {
+      urgenceHtml = "<font color='#d93025'><b>🔴 Priorité haute</b></font>";
+    } else if (urgenceRaw.includes("moyenne")) {
+      urgenceHtml = "<font color='#e37400'><b>🟠 Priorité moyenne</b></font>";
+    } else {
+      urgenceHtml = "<font color='#188038'><b>🟢 Priorité normale</b></font>";
+    }
+
+    indicateurSection.addWidget(CardService.newDecoratedText()
+      .setText(urgenceHtml)
+    );
+
+    // Affichage mis en valeur du sentiment
+    indicateurSection.addWidget(CardService.newDecoratedText()
+      .setText(`<b>${String(analysis.sentiment || "Neutre")}</b>`)
+      .setBottomLabel("Sentiment détecté")
+    );
+    
+    card.addSection(indicateurSection);
+    // -----------------------------------------------
+
+    // 3. Section Infos Dossier
+    const bizSection = CardService.newCardSection().setHeader('📌 Détails du dossier');
     
     if (pdfAttachments.length > 0) {
       bizSection.addWidget(CardService.newDecoratedText()
@@ -138,9 +165,9 @@ function buildContextualCard(e) {
     bizSection.addWidget(CardService.newTextParagraph().setText("**Résumé :**\n" + String(analysis.resume || "Analyse en cours...")));
     card.addSection(bizSection);
 
-    // Déclaration unique de l'URL pour éviter l'erreur de double déclaration
     const threadUrl = "https://mail.google.com/mail/u/0/#inbox/" + thread.getId();
 
+    // 4. Section Plan d'action
     if (analysis.tacheTitre) {
       const taskSection = CardService.newCardSection().setHeader('📋 Action recommandée');
       
@@ -150,7 +177,6 @@ function buildContextualCard(e) {
         .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CLOCK))
       );
 
-      // On prépare les notes de la tâche avec le client et le lien de l'email
       const taskNotes = `${analysis.tacheDescription || ''}\n\nClient : ${sender}\nLien : ${threadUrl}`;
 
       taskSection.addWidget(CardService.newTextButton()
@@ -166,13 +192,10 @@ function buildContextualCard(e) {
       card.addSection(taskSection);
     }
 
-    // Section des actions rapides avec structure Material Design 3
+    // 5. Section des actions rapides
     const actionSection = CardService.newCardSection().setHeader('⚡ Actions rapides');
-    
-    // Ajout d'un séparateur visuel pour structurer l'interface
     actionSection.addWidget(CardService.newDivider());
     
-    // Premier groupe d'actions (consultation et réponse)
     const primaryButtonSet = CardService.newButtonSet()
       .addButton(CardService.newTextButton()
         .setText("✉️ Ouvrir l'email")
@@ -191,35 +214,23 @@ function buildContextualCard(e) {
     }
     actionSection.addWidget(primaryButtonSet);
 
-    // Deuxième groupe d'actions (organisation et CRM)
     const secondaryButtonSet = CardService.newButtonSet()
       .addButton(CardService.newTextButton()
         .setText('📅 Rappel (Agenda)')
         .setOnClickAction(CardService.newAction()
-          // Correction ici : appel de la fonction qui ouvre la sous-carte de date
           .setFunctionName('showDatePickerCardAction')
           .setParameters({ 
             subject: String(subject), 
             sender: String(sender) 
-          })))
-      .addButton(CardService.newTextButton()
-        .setText('📊 Loguer CRM')
-        .setOnClickAction(CardService.newAction()
-          .setFunctionName('logToCrmAction')
-          .setParameters({ 
-            client: String(sender), 
-            amount: String(analysis.montant || "N/A"), 
-            category: String(analysis.categorie || "Autre"), 
-            summary: String(analysis.resume || "") 
           })));
 
     actionSection.addWidget(secondaryButtonSet);
     card.addSection(actionSection);
 
-    // Pied de page fixe avec le bouton de retour au Dashboard
+    // Pied de page
     card.setFixedFooter(CardService.newFixedFooter().setPrimaryButton(
       CardService.newTextButton()
-        .setText('Dashboard')
+        .setText('Tableau de bord')
         .setOnClickAction(CardService.newAction().setFunctionName('goToHomepageAction'))
     ));
 
@@ -389,16 +400,6 @@ function createCalendarEventAction(e) {
   }
 }
 
-function logToCrmAction(e) {
-  try {
-    const p = e.parameters;
-    const ss = CONFIG.SPREADSHEET_ID ? SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID) : SpreadsheetApp.create("Base_CRM_Assistant");
-    const sheet = ss.getSheets()[0];
-    if (sheet.getLastRow() === 0) sheet.appendRow(["Date", "Client", "Catégorie", "Montant", "Résumé"]);
-    sheet.appendRow([new Date(), p.client, p.category, p.amount, p.summary]);
-    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText("✅ Client logué au CRM !")).build();
-  } catch (err) { return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText("❌ Erreur Sheets")).build(); }
-}
 
 function createReplyDraftAction(e) {
   try {
