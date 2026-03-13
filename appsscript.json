@@ -16,6 +16,11 @@
         "userSymbol": "Sheets",
         "version": "v4",
         "serviceId": "sheets"
+      },
+      {
+        "userSymbol": "Calendar",
+        "version": "v3",
+        "serviceId": "calendar"
       }
     ]
   },
@@ -24,7 +29,7 @@
       "name": "CRM Assistant",
       "logoUrl": "https://www.gstatic.com/images/icons/material/system_gm/2x/mail_black_24dp.png",
       "layoutProperties": {
-        "primaryColor": "#1a73e8"
+        "primaryColor": "#0b57d0"
       },
       "useLocaleFromApp": true
     },
@@ -45,6 +50,7 @@
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/gmail.labels",
     "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/calendar",
     "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/tasks",
     "https://www.googleapis.com/auth/script.external_request",
