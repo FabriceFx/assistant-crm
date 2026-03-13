@@ -26,10 +26,10 @@
   },
   "addOns": {
     "common": {
-      "name": "CRM Assistant",
-      "logoUrl": "https://www.gstatic.com/images/icons/material/system_gm/2x/mail_black_24dp.png",
+      "name": "Assistant CRM",
+      "logoUrl": "https://www.gstatic.com/images/icons/material/system_gm/2x/mail_outline_gm_grey_24dp.png",
       "layoutProperties": {
-        "primaryColor": "#0b57d0"
+        "primaryColor": "#4285f4"
       },
       "useLocaleFromApp": true
     },
