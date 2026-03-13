@@ -5,7 +5,7 @@
  */
 
 const CONFIG = {
-  GEMINI_API_KEY: 'VOTRE_CLE_GEMINI',
+  GEMINI_API_KEY: 'VOTRE_CLE_API',
   GEMINI_MODEL: 'gemini-2.5-flash', 
   SPREADSHEET_ID: '', 
 };
@@ -21,6 +21,9 @@ const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/" + 
 /**
  * Page d'accueil du module complémentaire.
  */
+/**
+ * Page d'accueil du module complémentaire.
+ */
 function buildHomepage(e) {
   try {
     const card = CardService.newCardBuilder();
@@ -28,25 +31,27 @@ function buildHomepage(e) {
     card.setHeader(
       CardService.newCardHeader()
         .setTitle('⚡ Assistant CRM')
+        // Pense à remplacer cette URL par celle de ton icône compatible mode sombre
         .setImageUrl('https://www.gstatic.com/images/icons/material/system_gm/1x/mail_black_24dp.png')
     );
 
     const stats = getDashboardStats();
     const statsSection = CardService.newCardSection().setHeader('📊 État de vos flux');
     
-    statsSection.addWidget(createMetricWidget('Demandes de devis', stats.quotes, SEARCH_QUERIES.DEVIS, CardService.Icon.DESCRIPTION));
-    statsSection.addWidget(createMetricWidget('Commandes / ADV', stats.orders, SEARCH_QUERIES.COMMANDES, CardService.Icon.SHOPPING_CART));
-    statsSection.addWidget(createMetricWidget('SAV / Litiges', stats.complaints, SEARCH_QUERIES.SAV, CardService.Icon.TICKET));
+    // Remplacement des widgets avec boutons par des lignes entièrement cliquables
+    statsSection.addWidget(createClickableMetric('Demandes de devis', stats.quotes, SEARCH_QUERIES.DEVIS, CardService.Icon.DESCRIPTION));
+    statsSection.addWidget(createClickableMetric('Commandes / ADV', stats.orders, SEARCH_QUERIES.COMMANDES, CardService.Icon.SHOPPING_CART));
+    statsSection.addWidget(createClickableMetric('SAV / Litiges', stats.complaints, SEARCH_QUERIES.SAV, CardService.Icon.TICKET));
 
     card.addSection(statsSection);
 
     const prioritySection = CardService.newCardSection().setHeader('🔴 À traiter en priorité');
     const urgentThreads = getUrgentThreads();
-    
+
     if (urgentThreads.length === 0) {
       prioritySection.addWidget(CardService.newTextParagraph().setText('✅ Aucune urgence non lue.'));
     } else {
-      urgentThreads.forEach(item => {
+      urgentThreads.forEach((item, index) => {
         prioritySection.addWidget(
           CardService.newDecoratedText()
             .setText(String(item.subject).substring(0, 45) + "...")
@@ -56,6 +61,11 @@ function buildHomepage(e) {
               .setFunctionName('viewThreadAnalysisAction')
               .setParameters({ threadId: String(item.threadId) }))
         );
+        
+        // Ajout d'un séparateur visuel entre les emails, sauf après le dernier
+        if (index < urgentThreads.length - 1) {
+          prioritySection.addWidget(CardService.newDivider());
+        }
       });
     }
     card.addSection(prioritySection);
@@ -67,7 +77,26 @@ function buildHomepage(e) {
 }
 
 /**
+ * Crée une ligne de statistique épurée et entièrement cliquable.
+ * Remplace l'ancienne fonction createMetricWidget.
+ */
+function createClickableMetric(label, count, query, icon) {
+  return CardService.newDecoratedText()
+    .setTopLabel(label)
+    // Mise en gras du compteur pour une meilleure hiérarchie visuelle
+    .setText(`<b>${String(count)}</b> en attente`)
+    .setStartIcon(CardService.newIconImage().setIcon(icon))
+    // L'action est placée directement sur l'élément textuel au lieu d'un bouton externe
+    .setOnClickAction(CardService.newAction()
+      .setFunctionName('listCategoryThreadsAction')
+      .setParameters({ category: String(label), query: String(query) }));
+}
+
+/**
  * Affiche l'analyse IA détaillée d'un email.
+ */
+/**
+ * Affiche l'analyse IA détaillée d'un email avec une interface Material Design 3.
  */
 function buildContextualCard(e) {
   try {
@@ -87,6 +116,8 @@ function buildContextualCard(e) {
     const analysis = callGeminiAI(message.getPlainBody().substring(0, 3000), subject, pdfAttachments);
 
     const card = CardService.newCardBuilder();
+
+    // En-tête de la carte
     card.setHeader(CardService.newCardHeader()
       .setTitle(String(analysis.categorie || "Dossier Client"))
       .setSubtitle("Sentiment : " + String(analysis.sentiment || "Neutre")));
@@ -110,17 +141,25 @@ function buildContextualCard(e) {
     bizSection.addWidget(CardService.newTextParagraph().setText("**Résumé :**\n" + String(analysis.resume || "Analyse en cours...")));
     card.addSection(bizSection);
 
+    // Section des actions rapides avec structure Material Design 3
     const actionSection = CardService.newCardSection().setHeader('⚡ Actions rapides');
     
+    // Ajout d'un séparateur visuel pour structurer l'interface
+    actionSection.addWidget(CardService.newDivider());
+    
     const threadUrl = "https://mail.google.com/mail/u/0/#inbox/" + thread.getId();
-    actionSection.addWidget(CardService.newTextButton()
-      .setText("✉️ Accéder à l'email")
-      .setOpenLink(CardService.newOpenLink().setUrl(threadUrl)));
+    
+    // Premier groupe d'actions (consultation et réponse)
+    const primaryButtonSet = CardService.newButtonSet()
+      .addButton(CardService.newTextButton()
+        .setText("✉️ Ouvrir l'email")
+        .setOpenLink(CardService.newOpenLink().setUrl(threadUrl)));
 
-    // Correction : On vérifie si reponseSuggree existe ET on sécurise le paramètre
     if (analysis.reponseSuggree) {
-      actionSection.addWidget(CardService.newTextButton()
-        .setText('📝 Préparer la réponse')
+      primaryButtonSet.addButton(CardService.newTextButton()
+        .setText('📝 Préparer le brouillon')
+        // Correction effectuée ici avec setTextButtonStyle
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED) 
         .setOnClickAction(CardService.newAction()
           .setFunctionName('createReplyDraftAction')
           .setParameters({ 
@@ -128,34 +167,41 @@ function buildContextualCard(e) {
             messageId: String(messageId) 
           })));
     }
+    actionSection.addWidget(primaryButtonSet);
 
-    actionSection.addWidget(CardService.newTextButton()
-      .setText('📅 Rappeler (Agenda)')
-      .setOnClickAction(CardService.newAction()
-        .setFunctionName('createCalendarEventAction')
-        .setParameters({ 
-          subject: String(subject), 
-          sender: String(sender) 
-        })));
+    // Deuxième groupe d'actions (organisation et CRM)
+    const secondaryButtonSet = CardService.newButtonSet()
+      .addButton(CardService.newTextButton()
+        .setText('📅 Rappel (Agenda)')
+        .setOnClickAction(CardService.newAction()
+          .setFunctionName('createCalendarEventAction')
+          .setParameters({ 
+            subject: String(subject), 
+            sender: String(sender) 
+          })))
+      .addButton(CardService.newTextButton()
+        .setText('📊 Loguer CRM')
+        .setOnClickAction(CardService.newAction()
+          .setFunctionName('logToCrmAction')
+          .setParameters({ 
+            client: String(sender), 
+            amount: String(analysis.montant || "N/A"), 
+            category: String(analysis.categorie || "Autre"), 
+            summary: String(analysis.resume || "") 
+          })));
 
-    actionSection.addWidget(CardService.newTextButton()
-      .setText('📊 Loguer au CRM')
-      .setOnClickAction(CardService.newAction()
-        .setFunctionName('logToCrmAction')
-        .setParameters({ 
-          client: String(sender), 
-          amount: String(analysis.montant || "N/A"), 
-          category: String(analysis.categorie || "Autre"), 
-          summary: String(analysis.resume || "") 
-        })));
-
+    actionSection.addWidget(secondaryButtonSet);
     card.addSection(actionSection);
 
+    // Pied de page fixe avec le bouton de retour au Dashboard
     card.setFixedFooter(CardService.newFixedFooter().setPrimaryButton(
-      CardService.newTextButton().setText('Dashboard').setOnClickAction(CardService.newAction().setFunctionName('goToHomepageAction'))
+      CardService.newTextButton()
+        .setText('Dashboard')
+        .setOnClickAction(CardService.newAction().setFunctionName('goToHomepageAction'))
     ));
 
     return card.build();
+
   } catch (err) {
     return buildErrorCard("Erreur Analyse : " + err.message);
   }
@@ -229,32 +275,55 @@ function goToHomepageAction(e) {
 /**
  * Liste les fils de discussion pour une catégorie donnée.
  */
+/**
+ * Liste les fils de discussion pour une catégorie donnée (interface optimisée).
+ */
 function listCategoryThreadsAction(e) {
   const categoryName = e.parameters.category || "Dossiers";
   const query = e.parameters.query || "is:unread";
   
-  const card = CardService.newCardBuilder().setHeader(CardService.newCardHeader().setTitle('📁 ' + categoryName));
+  const card = CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader().setTitle('📁 ' + categoryName));
+    
   const section = CardService.newCardSection();
-  
   const threads = GmailApp.search(query, 0, 20);
   
   if (!threads || threads.length === 0) {
-    section.addWidget(CardService.newTextParagraph().setText("Aucun message trouvé dans cette catégorie."));
+    section.addWidget(CardService.newTextParagraph().setText("✅ Aucun message en attente dans cette catégorie."));
   } else {
-    threads.forEach(t => {
+    threads.forEach((t, index) => {
+      // Nettoyage du nom de l'expéditeur pour un affichage plus propre
+      let rawSender = t.getMessages()[0].getFrom();
+      let cleanSender = rawSender.split('<')[0].replace(/"/g, '').trim();
+      let subject = String(t.getFirstMessageSubject());
+      
+      // Troncature intelligente du sujet pour éviter qu'il ne prenne trop de lignes
+      let displaySubject = subject.length > 45 ? subject.substring(0, 45) + "..." : subject;
+
       section.addWidget(CardService.newDecoratedText()
-        .setText(String(t.getFirstMessageSubject()).substring(0, 50) + "...")
-        .setBottomLabel(String(t.getMessages()[0].getFrom().split('<')[0]))
+        .setText(displaySubject)
+        .setBottomLabel(cleanSender)
         .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.EMAIL))
+        // Toute la zone est cliquable pour une meilleure ergonomie
         .setOnClickAction(CardService.newAction()
           .setFunctionName('viewThreadAnalysisAction')
-          .setParameters({ threadId: String(t.getId()) })));
+          .setParameters({ threadId: String(t.getId()) }))
+      );
+      
+      // Ajout d'un séparateur discret entre les éléments, sauf pour le dernier
+      if (index < threads.length - 1) {
+        section.addWidget(CardService.newDivider());
+      }
     });
   }
   
   card.addSection(section);
+  
+  // Maintien du bouton de retour fixé en bas de l'écran pour une navigation fluide
   card.setFixedFooter(CardService.newFixedFooter().setPrimaryButton(
-    CardService.newTextButton().setText('Retour').setOnClickAction(CardService.newAction().setFunctionName('goToHomepageAction'))
+    CardService.newTextButton()
+      .setText('Retour')
+      .setOnClickAction(CardService.newAction().setFunctionName('goToHomepageAction'))
   ));
   
   return CardService.newActionResponseBuilder()
@@ -328,5 +397,25 @@ function createMetricWidget(label, count, query, icon) {
 }
 
 function buildErrorCard(message) {
-  return CardService.newCardBuilder().setHeader(CardService.newCardHeader().setTitle('❌ Erreur')).addSection(CardService.newCardSection().addWidget(CardService.newTextParagraph().setText(message))).build();
+  const section = CardService.newCardSection()
+    .addWidget(
+      CardService.newDecoratedText()
+        .setTopLabel("Oups, un problème est survenu")
+        .setText(String(message))
+        .setWrapText(true)
+    );
+
+  const buttonSet = CardService.newButtonSet()
+    .addButton(CardService.newTextButton()
+      .setText("Retour à l'accueil")
+      // Correction de la méthode ici :
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setOnClickAction(CardService.newAction().setFunctionName('goToHomepageAction')));
+      
+  section.addWidget(buttonSet);
+
+  return CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader().setTitle('❌ Interruption'))
+    .addSection(section)
+    .build();
 }
