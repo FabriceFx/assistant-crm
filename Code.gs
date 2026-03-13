@@ -92,9 +92,53 @@ function createClickableMetric(label, count, query, icon) {
 /**
  * Affiche l'analyse IA détaillée d'un email.
  */
+/**
+ * 1. Affiche instantanément une carte d'attente (sans bloquer l'interface).
+ */
 function buildContextualCard(e) {
   try {
     const messageId = e.messageMetadata.messageId;
+    const message = GmailApp.getMessageById(messageId);
+    const sender = message.getFrom().split('<')[0].trim();
+
+    const card = CardService.newCardBuilder()
+      .setHeader(CardService.newCardHeader()
+        .setTitle('Assistant IA prêt')
+        .setSubtitle(sender)
+      );
+
+    const section = CardService.newCardSection()
+      .addWidget(CardService.newTextParagraph().setText("Cliquez ci-dessous pour extraire les données, analyser le sentiment et préparer un plan d'action avec Gemini."));
+
+    // Action avec indicateur de chargement (SPINNER) natif
+    const analyzeAction = CardService.newAction()
+      .setFunctionName('performAnalysisAction')
+      .setParameters({ messageId: String(messageId) })
+      .setLoadIndicator(CardService.LoadIndicator.SPINNER);
+
+    section.addWidget(CardService.newTextButton()
+      .setText('✨ Lancer l\'analyse')
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setOnClickAction(analyzeAction)
+    );
+
+    card.addSection(section);
+    return card.build();
+
+  } catch (err) {
+    return buildErrorCard("Erreur de préparation : " + err.message);
+  }
+}
+
+/**
+ * 2. Exécute l'analyse IA et met à jour l'interface avec les résultats.
+ */
+/**
+ * 2. Exécute l'analyse IA et met à jour l'interface avec les résultats.
+ */
+function performAnalysisAction(e) {
+  try {
+    const messageId = e.parameters.messageId;
     const message = GmailApp.getMessageById(messageId);
     const thread = message.getThread();
     const subject = message.getSubject();
@@ -107,47 +151,34 @@ function buildContextualCard(e) {
       return type.indexOf('pdf') !== -1 || name.indexOf('.pdf') !== -1;
     });
 
+    // Appel à l'IA 
     const analysis = callGeminiAI(message.getPlainBody().substring(0, 3000), subject, pdfAttachments);
 
     const card = CardService.newCardBuilder();
-
-    // 1. En-tête de la carte simplifié
     card.setHeader(CardService.newCardHeader()
       .setTitle(String(analysis.categorie || "Dossier Client"))
-      .setSubtitle(String(sender.split('<')[0].trim())) // Affiche le nom du client en sous-titre
+      .setSubtitle(String(sender.split('<')[0].trim())) 
     );
 
-    // --- NOUVEAU : 2. Section Indicateurs Visuels ---
+    // Section Indicateurs Visuels
     const indicateurSection = CardService.newCardSection();
-    
-    // Logique de coloration pour l'urgence
     const urgenceRaw = String(analysis.urgence || "Normale").toLowerCase();
-    let urgenceHtml = "";
-    
+    let urgenceHtml = "<font color='#188038'><b>🟢 Priorité normale</b></font>";
     if (urgenceRaw.includes("haute") || urgenceRaw.includes("urgent") || urgenceRaw.includes("critique")) {
       urgenceHtml = "<font color='#d93025'><b>🔴 Priorité haute</b></font>";
     } else if (urgenceRaw.includes("moyenne")) {
       urgenceHtml = "<font color='#e37400'><b>🟠 Priorité moyenne</b></font>";
-    } else {
-      urgenceHtml = "<font color='#188038'><b>🟢 Priorité normale</b></font>";
     }
 
-    indicateurSection.addWidget(CardService.newDecoratedText()
-      .setText(urgenceHtml)
-    );
-
-    // Affichage mis en valeur du sentiment
+    indicateurSection.addWidget(CardService.newDecoratedText().setText(urgenceHtml));
     indicateurSection.addWidget(CardService.newDecoratedText()
       .setText(`<b>${String(analysis.sentiment || "Neutre")}</b>`)
       .setBottomLabel("Sentiment détecté")
     );
-    
     card.addSection(indicateurSection);
-    // -----------------------------------------------
 
-    // 3. Section Infos Dossier
+    // Section Infos Dossier
     const bizSection = CardService.newCardSection().setHeader('📌 Détails du dossier');
-    
     if (pdfAttachments.length > 0) {
       bizSection.addWidget(CardService.newDecoratedText()
         .setText(`${pdfAttachments.length} PDF analysé(s)`)
@@ -167,32 +198,28 @@ function buildContextualCard(e) {
 
     const threadUrl = "https://mail.google.com/mail/u/0/#inbox/" + thread.getId();
 
-    // 4. Section Plan d'action
+    // Section Plan d'action
     if (analysis.tacheTitre) {
       const taskSection = CardService.newCardSection().setHeader('📋 Action recommandée');
-      
       taskSection.addWidget(CardService.newDecoratedText()
         .setText(String(analysis.tacheTitre))
         .setBottomLabel(String(analysis.tacheDescription || "Pas de détails additionnels."))
         .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CLOCK))
       );
-
-      const taskNotes = `${analysis.tacheDescription || ''}\n\nClient : ${sender}\nLien : ${threadUrl}`;
-
+      
+      // Tronquer la description pour éviter le dépassement de limite de paramètres Google
+      const taskNotes = `${analysis.tacheDescription || ''}\n\nClient : ${sender}\nLien : ${threadUrl}`.substring(0, 1500);
+      
       taskSection.addWidget(CardService.newTextButton()
         .setText('✅ Ajouter à mes tâches')
         .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
         .setOnClickAction(CardService.newAction()
           .setFunctionName('createTaskAction')
-          .setParameters({ 
-            title: String(analysis.tacheTitre), 
-            notes: String(taskNotes) 
-          })));
-          
+          .setParameters({ title: String(analysis.tacheTitre), notes: String(taskNotes) })));
       card.addSection(taskSection);
     }
 
-    // 5. Section des actions rapides
+    // Section Actions rapides
     const actionSection = CardService.newCardSection().setHeader('⚡ Actions rapides');
     actionSection.addWidget(CardService.newDivider());
     
@@ -202,15 +229,15 @@ function buildContextualCard(e) {
         .setOpenLink(CardService.newOpenLink().setUrl(threadUrl)));
 
     if (analysis.reponseSuggree) {
+      // SOLUTION : Stockage en cache au lieu de le passer en paramètre du bouton
+      CacheService.getUserCache().put('draft_' + messageId, String(analysis.reponseSuggree), 1800); // Valable 30 minutes
+      
       primaryButtonSet.addButton(CardService.newTextButton()
         .setText('📝 Préparer le brouillon')
         .setTextButtonStyle(CardService.TextButtonStyle.FILLED) 
         .setOnClickAction(CardService.newAction()
           .setFunctionName('createReplyDraftAction')
-          .setParameters({ 
-            reply: String(analysis.reponseSuggree), 
-            messageId: String(messageId) 
-          })));
+          .setParameters({ messageId: String(messageId) }))); // On ne passe QUE l'ID !
     }
     actionSection.addWidget(primaryButtonSet);
 
@@ -219,25 +246,25 @@ function buildContextualCard(e) {
         .setText('📅 Rappel (Agenda)')
         .setOnClickAction(CardService.newAction()
           .setFunctionName('showDatePickerCardAction')
-          .setParameters({ 
-            subject: String(subject), 
-            sender: String(sender) 
-          })));
+          .setParameters({ subject: String(subject), sender: String(sender) })));
 
     actionSection.addWidget(secondaryButtonSet);
     card.addSection(actionSection);
 
-    // Pied de page
     card.setFixedFooter(CardService.newFixedFooter().setPrimaryButton(
       CardService.newTextButton()
         .setText('Tableau de bord')
         .setOnClickAction(CardService.newAction().setFunctionName('goToHomepageAction'))
     ));
 
-    return card.build();
+    return CardService.newActionResponseBuilder()
+      .setNavigation(CardService.newNavigation().updateCard(card.build()))
+      .build();
 
   } catch (err) {
-    return buildErrorCard("Erreur Analyse : " + err.message);
+    return CardService.newActionResponseBuilder()
+      .setNavigation(CardService.newNavigation().updateCard(buildErrorCard("Erreur Analyse : " + err.message)))
+      .build();
   }
 }
 
@@ -246,6 +273,15 @@ function buildContextualCard(e) {
  */
 
 function callGeminiAI(text, subject, pdfAttachments = []) {
+  // Récupération de la clé API au moment de l'exécution
+  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  
+  if (!apiKey) {
+    throw new Error("La clé API GEMINI_API_KEY est introuvable dans les propriétés du script.");
+  }
+
+  const modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=" + apiKey;
+
   let parts = [
     { text: "Tu es un assistant commercial CRM. Analyse l'email et les PDF joints pour extraire les montants, références, intentions et identifier l'action principale à réaliser." },
     { text: "Réponds UNIQUEMENT en JSON valide : {\"urgence\":\"...\", \"sentiment\":\"Emoji + texte\", \"categorie\":\"...\", \"montant\":\"...\", \"numeroCommande\":\"...\", \"resume\":\"...\", \"reponseSuggree\":\"...\", \"tacheTitre\":\"Titre de l'action à faire (court)\", \"tacheDescription\":\"Détail de l'action (court)\"}" },
@@ -276,7 +312,7 @@ function callGeminiAI(text, subject, pdfAttachments = []) {
 
   let response;
   for (let i = 0; i < 3; i++) {
-    response = UrlFetchApp.fetch(GEMINI_URL, options);
+    response = UrlFetchApp.fetch(modelUrl, options);
     if (response.getResponseCode() !== 429) break; 
     Utilities.sleep(Math.pow(2, i) * 1000);
   }
@@ -284,6 +320,12 @@ function callGeminiAI(text, subject, pdfAttachments = []) {
   try {
     const resText = response.getContentText();
     const json = JSON.parse(resText);
+
+    // Interception des véritables erreurs de l'API Gemini
+    if (json.error) {
+      throw new Error("Refus de l'API : " + json.error.message);
+    }
+
     if (json.candidates && json.candidates[0]) {
       let raw = json.candidates[0].content.parts[0].text;
       raw = raw.replace(/```json|```/g, "").trim();
@@ -291,11 +333,20 @@ function callGeminiAI(text, subject, pdfAttachments = []) {
       Object.keys(parsed).forEach(key => { if (parsed[key] === null) parsed[key] = ""; });
       return parsed;
     }
-    throw new Error("IA muette");
+    
+    throw new Error("Format de réponse inconnu.");
   } catch (err) {
-    return { urgence: "Moyenne", sentiment: "Neutre", categorie: "Autre", montant: "N/A", resume: "Analyse indisponible.", reponseSuggree: "" };
+    return { 
+      urgence: "Erreur", 
+      sentiment: "Erreur", 
+      categorie: "Erreur", 
+      montant: "N/A", 
+      resume: err.message, 
+      reponseSuggree: "" 
+    };
   }
 }
+
 
 /**
  * Retourne au tableau de bord.
