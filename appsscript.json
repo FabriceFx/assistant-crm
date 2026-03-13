@@ -1,0 +1,56 @@
+{
+  "timeZone": "Europe/Paris",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Tasks",
+        "serviceId": "tasks",
+        "version": "v1"
+      },
+      {
+        "userSymbol": "Gmail",
+        "version": "v1",
+        "serviceId": "gmail"
+      },
+      {
+        "userSymbol": "Sheets",
+        "version": "v4",
+        "serviceId": "sheets"
+      }
+    ]
+  },
+  "addOns": {
+    "common": {
+      "name": "CRM Assistant",
+      "logoUrl": "https://www.gstatic.com/images/icons/material/system_gm/2x/mail_black_24dp.png",
+      "layoutProperties": {
+        "primaryColor": "#1a73e8"
+      },
+      "useLocaleFromApp": true
+    },
+    "gmail": {
+      "homepageTrigger": {
+        "runFunction": "buildHomepage",
+        "enabled": true
+      },
+      "contextualTriggers": [
+        {
+          "unconditional": {},
+          "onTriggerFunction": "buildContextualCard"
+        }
+      ]
+    }
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/gmail.labels",
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+    "https://www.googleapis.com/auth/tasks",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.locale",
+    "https://www.googleapis.com/auth/gmail.addons.execute"
+  ],
+  "runtimeVersion": "V8",
+  "exceptionLogging": "NONE"
+}
