@@ -95,9 +95,6 @@ function createClickableMetric(label, count, query, icon) {
 /**
  * Affiche l'analyse IA détaillée d'un email.
  */
-/**
- * Affiche l'analyse IA détaillée d'un email avec une interface Material Design 3.
- */
 function buildContextualCard(e) {
   try {
     const messageId = e.messageMetadata.messageId;
@@ -141,13 +138,39 @@ function buildContextualCard(e) {
     bizSection.addWidget(CardService.newTextParagraph().setText("**Résumé :**\n" + String(analysis.resume || "Analyse en cours...")));
     card.addSection(bizSection);
 
+    // Déclaration unique de l'URL pour éviter l'erreur de double déclaration
+    const threadUrl = "https://mail.google.com/mail/u/0/#inbox/" + thread.getId();
+
+    if (analysis.tacheTitre) {
+      const taskSection = CardService.newCardSection().setHeader('📋 Action recommandée');
+      
+      taskSection.addWidget(CardService.newDecoratedText()
+        .setText(String(analysis.tacheTitre))
+        .setBottomLabel(String(analysis.tacheDescription || "Pas de détails additionnels."))
+        .setStartIcon(CardService.newIconImage().setIcon(CardService.Icon.CLOCK))
+      );
+
+      // On prépare les notes de la tâche avec le client et le lien de l'email
+      const taskNotes = `${analysis.tacheDescription || ''}\n\nClient : ${sender}\nLien : ${threadUrl}`;
+
+      taskSection.addWidget(CardService.newTextButton()
+        .setText('✅ Ajouter à mes tâches')
+        .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+        .setOnClickAction(CardService.newAction()
+          .setFunctionName('createTaskAction')
+          .setParameters({ 
+            title: String(analysis.tacheTitre), 
+            notes: String(taskNotes) 
+          })));
+          
+      card.addSection(taskSection);
+    }
+
     // Section des actions rapides avec structure Material Design 3
     const actionSection = CardService.newCardSection().setHeader('⚡ Actions rapides');
     
     // Ajout d'un séparateur visuel pour structurer l'interface
     actionSection.addWidget(CardService.newDivider());
-    
-    const threadUrl = "https://mail.google.com/mail/u/0/#inbox/" + thread.getId();
     
     // Premier groupe d'actions (consultation et réponse)
     const primaryButtonSet = CardService.newButtonSet()
@@ -158,7 +181,6 @@ function buildContextualCard(e) {
     if (analysis.reponseSuggree) {
       primaryButtonSet.addButton(CardService.newTextButton()
         .setText('📝 Préparer le brouillon')
-        // Correction effectuée ici avec setTextButtonStyle
         .setTextButtonStyle(CardService.TextButtonStyle.FILLED) 
         .setOnClickAction(CardService.newAction()
           .setFunctionName('createReplyDraftAction')
@@ -174,7 +196,8 @@ function buildContextualCard(e) {
       .addButton(CardService.newTextButton()
         .setText('📅 Rappel (Agenda)')
         .setOnClickAction(CardService.newAction()
-          .setFunctionName('createCalendarEventAction')
+          // Correction ici : appel de la fonction qui ouvre la sous-carte de date
+          .setFunctionName('showDatePickerCardAction')
           .setParameters({ 
             subject: String(subject), 
             sender: String(sender) 
@@ -208,12 +231,13 @@ function buildContextualCard(e) {
 }
 
 /**
- * Appelle l'API Gemini pour analyser le contenu (Mail + PDF).
+ * Appelle l'API Gemini pour analyser le contenu
  */
+
 function callGeminiAI(text, subject, pdfAttachments = []) {
   let parts = [
-    { text: "Tu es un assistant Commercial CRM. Analyse l'email et les PDF joints pour extraire les montants (ex: 59,98 €), références et intentions." },
-    { text: "Réponds UNIQUEMENT en JSON valide : {\"urgence\":\"...\", \"sentiment\":\"Emoji + texte\", \"categorie\":\"...\", \"montant\":\"...\", \"numeroCommande\":\"...\", \"resume\":\"...\", \"reponseSuggree\":\"...\"}" },
+    { text: "Tu es un assistant commercial CRM. Analyse l'email et les PDF joints pour extraire les montants, références, intentions et identifier l'action principale à réaliser." },
+    { text: "Réponds UNIQUEMENT en JSON valide : {\"urgence\":\"...\", \"sentiment\":\"Emoji + texte\", \"categorie\":\"...\", \"montant\":\"...\", \"numeroCommande\":\"...\", \"resume\":\"...\", \"reponseSuggree\":\"...\", \"tacheTitre\":\"Titre de l'action à faire (court)\", \"tacheDescription\":\"Détail de l'action (court)\"}" },
     { text: `Objet : ${subject}` },
     { text: `Corps du mail : ${text}` }
   ];
@@ -253,7 +277,6 @@ function callGeminiAI(text, subject, pdfAttachments = []) {
       let raw = json.candidates[0].content.parts[0].text;
       raw = raw.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(raw);
-      // Sécurité pour s'assurer qu'aucun champ n'est null
       Object.keys(parsed).forEach(key => { if (parsed[key] === null) parsed[key] = ""; });
       return parsed;
     }
@@ -275,9 +298,7 @@ function goToHomepageAction(e) {
 /**
  * Liste les fils de discussion pour une catégorie donnée.
  */
-/**
- * Liste les fils de discussion pour une catégorie donnée (interface optimisée).
- */
+
 function listCategoryThreadsAction(e) {
   const categoryName = e.parameters.category || "Dossiers";
   const query = e.parameters.query || "is:unread";
@@ -334,14 +355,38 @@ function listCategoryThreadsAction(e) {
 /**
  * Création d'un événement d'agenda.
  */
+
 function createCalendarEventAction(e) {
   try {
-    const now = new Date();
-    const startTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 0, 0);
-    const endTime = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 9, 30, 0);
-    CalendarApp.getDefaultCalendar().createEvent(`[CRM] Relance : ${e.parameters.sender}`, startTime, endTime, { description: `Sujet : ${e.parameters.subject}` });
-    return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText("📅 Événement ajouté à demain 9h !")).build();
-  } catch (err) { return CardService.newActionResponseBuilder().setNotification(CardService.newNotification().setText("❌ Erreur Agenda")).build(); }
+    const sender = String(e.parameters.sender || "Client");
+    const subject = String(e.parameters.subject || "Sans objet");
+    
+    let startTimeMs = new Date().getTime() + 86400000; 
+    
+    if (e.formInput && e.formInput.rappelDateTime) {
+      startTimeMs = Number(e.formInput.rappelDateTime.msSinceEpoch || e.formInput.rappelDateTime);
+    }
+    
+    const startTime = new Date(startTimeMs);
+    const endTime = new Date(startTime.getTime() + 30 * 60000); 
+
+    CalendarApp.getDefaultCalendar().createEvent(
+      `[CRM] Relance : ${sender}`, 
+      startTime, 
+      endTime, 
+      { description: `Sujet : ${subject}` }
+    );
+
+    // Ajout de popCard() pour fermer la vue de sélection de date
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification().setText("📅 Événement planifié !"))
+      .setNavigation(CardService.newNavigation().popCard())
+      .build();
+  } catch (err) { 
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification().setText("❌ Erreur Agenda : " + err.message))
+      .build(); 
+  }
 }
 
 function logToCrmAction(e) {
@@ -370,6 +415,52 @@ function viewThreadAnalysisAction(e) {
 }
 
 /**
+ * Affiche une sous-carte pour sélectionner la date et l'heure du rappel.
+ */
+function showDatePickerCardAction(e) {
+  const sender = e.parameters.sender || "Client";
+  const subject = e.parameters.subject || "Sans objet";
+
+  const card = CardService.newCardBuilder()
+    .setHeader(CardService.newCardHeader().setTitle('📅 Planifier un rappel'));
+
+  const section = CardService.newCardSection()
+    .addWidget(CardService.newTextParagraph().setText(`Planification pour : **${sender}**`));
+
+  const defaultDate = new Date();
+  defaultDate.setDate(defaultDate.getDate() + 1);
+  defaultDate.setHours(9, 0, 0, 0);
+
+  // Le sélecteur est maintenant isolé sur cette vue
+  const dateTimePicker = CardService.newDateTimePicker()
+    .setTitle("Quand voulez-vous être rappelé ?")
+    .setFieldName("rappelDateTime")
+    .setValueInMsSinceEpoch(defaultDate.getTime());
+
+  section.addWidget(dateTimePicker);
+
+  // Bouton de validation qui déclenchera la création finale
+  const buttonSet = CardService.newButtonSet()
+    .addButton(CardService.newTextButton()
+      .setText("Valider et planifier")
+      .setTextButtonStyle(CardService.TextButtonStyle.FILLED)
+      .setOnClickAction(CardService.newAction()
+        .setFunctionName('createCalendarEventAction')
+        .setParameters({ 
+          subject: subject, 
+          sender: sender 
+        })));
+
+  section.addWidget(buttonSet);
+  card.addSection(section);
+
+  // PushCard permet de superposer cette carte, l'utilisateur garde son contexte
+  return CardService.newActionResponseBuilder()
+    .setNavigation(CardService.newNavigation().pushCard(card.build()))
+    .build();
+}
+
+/**
  * Récupération des statistiques.
  */
 function getDashboardStats() {
@@ -394,6 +485,33 @@ function createMetricWidget(label, count, query, icon) {
     .setText(String(count) + " en attente")
     .setStartIcon(CardService.newIconImage().setIcon(icon))
     .setButton(CardService.newTextButton().setText("Voir").setOnClickAction(CardService.newAction().setFunctionName('listCategoryThreadsAction').setParameters({ category: String(label), query: String(query) })));
+}
+
+/**
+ * Création d'une tâche dans Google Tasks avec le lien du mail.
+ */
+function createTaskAction(e) {
+  try {
+    const title = e.parameters.title;
+    const notes = e.parameters.notes;
+    
+    // L'API Google Tasks attend un objet spécifique
+    const task = {
+      title: title,
+      notes: notes
+    };
+    
+    // '@default' cible la liste de tâches principale de l'utilisateur
+    Tasks.Tasks.insert(task, '@default');
+    
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification().setText("✅ Tâche ajoutée à Google Tasks !"))
+      .build();
+  } catch (err) { 
+    return CardService.newActionResponseBuilder()
+      .setNotification(CardService.newNotification().setText("❌ Erreur Tasks : " + err.message))
+      .build(); 
+  }
 }
 
 function buildErrorCard(message) {
