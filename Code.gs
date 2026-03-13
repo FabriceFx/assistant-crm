@@ -1,14 +1,14 @@
 /**
  * ============================================================
- * CRM ASSISTANT GMAIL ADD-ON — Version 6.0
+ * CRM ASSISTANT GMAIL ADD-ON
  * ============================================================
  */
 
 const CONFIG = {
-  GEMINI_API_KEY: 'VOTRE_CLE_API',
-  GEMINI_MODEL: 'gemini-2.5-flash', 
-  SPREADSHEET_ID: '', 
+  GEMINI_MODEL: 'gemini-2.5-flash'
 };
+
+const GEMINI_API_KEY = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
 
 const SEARCH_QUERIES = {
   DEVIS: 'is:unread "devis" OR "cotation" OR "proforma" OR "offre commerciale"',
@@ -465,11 +465,18 @@ function showDatePickerCardAction(e) {
  * Récupération des statistiques.
  */
 function getDashboardStats() {
-  return {
-    quotes: GmailApp.search(SEARCH_QUERIES.DEVIS, 0, 50).length,
-    orders: GmailApp.search(SEARCH_QUERIES.COMMANDES, 0, 50).length,
+  const cache = CacheService.getUserCache();
+  const cached = cache.get('dashboard_stats');
+  if (cached) return JSON.parse(cached);
+
+  const stats = {
+    quotes:     GmailApp.search(SEARCH_QUERIES.DEVIS, 0, 50).length,
+    orders:     GmailApp.search(SEARCH_QUERIES.COMMANDES, 0, 50).length,
     complaints: GmailApp.search(SEARCH_QUERIES.SAV, 0, 50).length
   };
+
+  cache.put('dashboard_stats', JSON.stringify(stats), 300); // 5 min
+  return stats;
 }
 
 function getUrgentThreads() {
