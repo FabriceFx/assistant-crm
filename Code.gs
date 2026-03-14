@@ -8,7 +8,7 @@
  * agenda, brouillons) et une analyse approfondie des messages 
  * et de leurs pièces jointes (PDF) propulsée par l'IA Gemini.
  * * AUTEUR          : Fabrice FAUCHEUX
- * VERSION         : 1.1.5 
+ * VERSION         : 1.1.7 
  * DATE            : Mars 2026
  * ERVICES GOOGLE : GmailApp, CardService, PropertiesService, CacheService, 
  * CalendarApp, Tasks, UrlFetchApp.
@@ -87,7 +87,9 @@ function getUserSettings() {
 
     LABEL_CAT3: userProps.getProperty('LABEL_CAT3') || DEFAULT_SETTINGS.LABEL_CAT3,
     QUERY_CAT3: userProps.getProperty('QUERY_CAT3') || DEFAULT_SETTINGS.QUERY_CAT3,
-    ICON_CAT3:  userProps.getProperty('ICON_CAT3')  || DEFAULT_SETTINGS.ICON_CAT3
+    ICON_CAT3:  userProps.getProperty('ICON_CAT3')  || DEFAULT_SETTINGS.ICON_CAT3,
+
+    GEMINI_API_KEY: userProps.getProperty('GEMINI_API_KEY') || ''
   };
 }
 
@@ -117,7 +119,7 @@ function buildHomepage(e) {
     // Ajout d'une action dans le menu (les 3 petits points en haut à droite)
     card.addCardAction(
       CardService.newCardAction()
-        .setText('⚙️ Modifier les filtres')
+        .setText('⚙️ Paramètres')
         .setOnClickAction(CardService.newAction().setFunctionName('buildSettingsCard'))
     );
 
@@ -501,10 +503,11 @@ function performAnalysisAction(e) {
  * Appelle l'API Gemini pour analyser le contenu d'un email.
  */
 function callGeminiAI(text, subject, pdfAttachments = []) {
-  const apiKey = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+
+  const apiKey = PropertiesService.getUserProperties().getProperty('GEMINI_API_KEY');
 
   if (!apiKey) {
-    throw new Error("La clé API GEMINI_API_KEY est introuvable dans les propriétés du script.");
+    throw new Error("Veuillez configurer votre clé API Gemini dans les paramètres du module.");
   }
 
   const modelUrl =
@@ -936,12 +939,24 @@ function buildSettingsCard(e) {
 
   formSection.addWidget(buttonSet);
 
-  // --- 4. Assemblage final de la carte ---
+ // --- 4. Section IA / Sécurité ---
+  const aiSection = CardService.newCardSection()
+    .setHeader("🤖 Intelligence artificielle")
+    .addWidget(
+      CardService.newTextInput()
+        .setFieldName('GEMINI_API_KEY')
+        .setTitle('Clé API Gemini')
+        .setHint('Collez ici votre clé obtenue sur Google AI Studio. Elle reste strictement confidentielle.')
+        .setValue(settings.GEMINI_API_KEY || '')
+    );
+
+  // --- 5. Assemblage final de la carte ---
   const card = CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('⚙️ Paramètres des flux'))
+    .setHeader(CardService.newCardHeader().setTitle('⚙️ Paramètres'))
+    .addSection(aiSection)
     .addSection(introSection)
-    .addSection(tipsSection)  // Ajout de notre nouvelle section d'aide
-    .addSection(formSection); // Ajout du formulaire
+    .addSection(tipsSection)  
+    .addSection(formSection); 
 
   return CardService.newActionResponseBuilder()
     .setNavigation(CardService.newNavigation().pushCard(card.build()))
@@ -954,6 +969,10 @@ function buildSettingsCard(e) {
 function saveSettingsAction(e) {
   const formInput = e.formInput;
   const userProps = PropertiesService.getUserProperties();
+
+  if (formInput.GEMINI_API_KEY !== undefined) {
+    userProps.setProperty('GEMINI_API_KEY', formInput.GEMINI_API_KEY);
+  }
 
   if (formInput.LABEL_CAT1) userProps.setProperty('LABEL_CAT1', formInput.LABEL_CAT1);
   if (formInput.LABEL_CAT2) userProps.setProperty('LABEL_CAT2', formInput.LABEL_CAT2);
