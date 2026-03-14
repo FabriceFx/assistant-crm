@@ -8,9 +8,9 @@
  * agenda, brouillons) et une analyse approfondie des messages 
  * et de leurs pièces jointes (PDF) propulsée par l'IA Gemini.
  * * AUTEUR          : Fabrice FAUCHEUX
- * VERSION         : 1.1.0 
+ * VERSION         : 1.1.5 
  * DATE            : Mars 2026
- * SERVICES GOOGLE : GmailApp, CardService, PropertiesService, CacheService, 
+ * ERVICES GOOGLE : GmailApp, CardService, PropertiesService, CacheService, 
  * CalendarApp, Tasks, UrlFetchApp.
  * PRÉREQUIS D'INSTALLATION :
  * 1. Ajouter une clé API valide dans les Propriétés du script :
@@ -865,33 +865,62 @@ function createIconDropdown(fieldName, title, currentValue) {
 /**
  * Construit la carte des paramètres pour éditer les catégories, requêtes et icônes.
  */
+
 function buildSettingsCard(e) {
   const settings = getUserSettings();
 
-  const section = CardService.newCardSection()
+  // --- 1. Section d'introduction ---
+  const introSection = CardService.newCardSection()
     .addWidget(
       CardService.newTextParagraph().setText(
-        "Personnalisez le nom, l'icône et la requête de vos catégories."
+        "Personnalisez le nom, l'icône et la requête Gmail (filtre) de vos catégories."
       )
     );
 
+  const tipsSection = CardService.newCardSection()
+    .setHeader("💡 Astuces : Exemples de requêtes par métier")
+    .setCollapsible(true) 
+    .setNumUncollapsibleWidgets(0) 
+    .addWidget(
+      CardService.newTextParagraph().setText(
+        "<b>Général</b>\n" +
+        "• <b>is:unread</b> : Emails non lus\n" +
+        "• <b>newer_than:7d</b> : Reçus les 7 derniers jours\n" +
+        "• <b>has:attachment</b> : Contient une pièce jointe\n\n" +
+        
+        "<b>💼 Commercial / Ventes</b>\n" +
+        "• <b>\"devis\" OR \"proposition\"</b> : Demandes commerciales\n" +
+        "• <b>\"contrat\" OR \"signature\"</b> : Signatures en attente\n" +
+        "• <b>\"rdv\" OR \"rendez-vous\"</b> : Planification\n\n" +
+        
+        "<b>🗂️ Assistant ADV / Gestion</b>\n" +
+        "• <b>\"commande\" OR \"bon de commande\"</b> : Nouvelles commandes\n" +
+        "• <b>\"facture\" OR \"paiement\"</b> : Suivi comptable\n" +
+        "• <b>\"livraison\" OR \"expédition\"</b> : Suivi logistique"
+      )
+    );
+
+  // --- 3. Section du Formulaire ---
+  const formSection = CardService.newCardSection();
+
   // --- Catégorie 1 ---
-  section.addWidget(CardService.newTextInput().setFieldName('LABEL_CAT1').setTitle('Nom de la catégorie 1').setValue(settings.LABEL_CAT1));
-  section.addWidget(createIconDropdown('ICON_CAT1', 'Icône 1', settings.ICON_CAT1));
-  section.addWidget(CardService.newTextInput().setFieldName('QUERY_CAT1').setTitle('Requête de la catégorie 1').setValue(settings.QUERY_CAT1));
-  section.addWidget(CardService.newDivider());
+  formSection.addWidget(CardService.newTextInput().setFieldName('LABEL_CAT1').setTitle('Nom de la catégorie 1').setValue(settings.LABEL_CAT1));
+  formSection.addWidget(createIconDropdown('ICON_CAT1', 'Icône 1', settings.ICON_CAT1));
+  formSection.addWidget(CardService.newTextInput().setFieldName('QUERY_CAT1').setTitle('Requête de la catégorie 1').setValue(settings.QUERY_CAT1));
+  formSection.addWidget(CardService.newDivider());
 
   // --- Catégorie 2 ---
-  section.addWidget(CardService.newTextInput().setFieldName('LABEL_CAT2').setTitle('Nom de la catégorie 2').setValue(settings.LABEL_CAT2));
-  section.addWidget(createIconDropdown('ICON_CAT2', 'Icône 2', settings.ICON_CAT2));
-  section.addWidget(CardService.newTextInput().setFieldName('QUERY_CAT2').setTitle('Requête de la catégorie 2').setValue(settings.QUERY_CAT2));
-  section.addWidget(CardService.newDivider());
+  formSection.addWidget(CardService.newTextInput().setFieldName('LABEL_CAT2').setTitle('Nom de la catégorie 2').setValue(settings.LABEL_CAT2));
+  formSection.addWidget(createIconDropdown('ICON_CAT2', 'Icône 2', settings.ICON_CAT2));
+  formSection.addWidget(CardService.newTextInput().setFieldName('QUERY_CAT2').setTitle('Requête de la catégorie 2').setValue(settings.QUERY_CAT2));
+  formSection.addWidget(CardService.newDivider());
 
   // --- Catégorie 3 ---
-  section.addWidget(CardService.newTextInput().setFieldName('LABEL_CAT3').setTitle('Nom de la catégorie 3').setValue(settings.LABEL_CAT3));
-  section.addWidget(createIconDropdown('ICON_CAT3', 'Icône 3', settings.ICON_CAT3));
-  section.addWidget(CardService.newTextInput().setFieldName('QUERY_CAT3').setTitle('Requête de la catégorie 3').setValue(settings.QUERY_CAT3));
+  formSection.addWidget(CardService.newTextInput().setFieldName('LABEL_CAT3').setTitle('Nom de la catégorie 3').setValue(settings.LABEL_CAT3));
+  formSection.addWidget(createIconDropdown('ICON_CAT3', 'Icône 3', settings.ICON_CAT3));
+  formSection.addWidget(CardService.newTextInput().setFieldName('QUERY_CAT3').setTitle('Requête de la catégorie 3').setValue(settings.QUERY_CAT3));
 
+  // --- Boutons d'action ---
   const buttonSet = CardService.newButtonSet()
     .addButton(
       CardService.newTextButton()
@@ -905,11 +934,14 @@ function buildSettingsCard(e) {
         .setOnClickAction(CardService.newAction().setFunctionName('resetSettingsAction'))
     );
 
-  section.addWidget(buttonSet);
+  formSection.addWidget(buttonSet);
 
+  // --- 4. Assemblage final de la carte ---
   const card = CardService.newCardBuilder()
     .setHeader(CardService.newCardHeader().setTitle('⚙️ Paramètres des flux'))
-    .addSection(section);
+    .addSection(introSection)
+    .addSection(tipsSection)  // Ajout de notre nouvelle section d'aide
+    .addSection(formSection); // Ajout du formulaire
 
   return CardService.newActionResponseBuilder()
     .setNavigation(CardService.newNavigation().pushCard(card.build()))
