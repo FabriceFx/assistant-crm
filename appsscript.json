@@ -8,16 +8,6 @@
         "version": "v1"
       },
       {
-        "userSymbol": "Gmail",
-        "version": "v1",
-        "serviceId": "gmail"
-      },
-      {
-        "userSymbol": "Sheets",
-        "version": "v4",
-        "serviceId": "sheets"
-      },
-      {
         "userSymbol": "Calendar",
         "version": "v3",
         "serviceId": "calendar"
@@ -48,13 +38,9 @@
   },
   "oauthScopes": [
     "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/gmail.labels",
-    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/drive",
     "https://www.googleapis.com/auth/tasks",
     "https://www.googleapis.com/auth/script.external_request",
-    "https://www.googleapis.com/auth/script.locale",
     "https://www.googleapis.com/auth/gmail.addons.execute"
   ],
   "runtimeVersion": "V8",
