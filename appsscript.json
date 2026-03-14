@@ -16,7 +16,7 @@
   },
   "addOns": {
     "common": {
-      "name": "Assistant CRM",
+      "name": "Mon assistant",
       "logoUrl": "https://www.gstatic.com/images/icons/material/system_gm/2x/mail_outline_gm_grey_24dp.png",
       "layoutProperties": {
         "primaryColor": "#4285f4"
@@ -37,12 +37,13 @@
     }
   },
   "oauthScopes": [
-    "https://www.googleapis.com/auth/gmail.modify",
-    "https://www.googleapis.com/auth/calendar",
-    "https://www.googleapis.com/auth/tasks",
-    "https://www.googleapis.com/auth/script.external_request",
-    "https://www.googleapis.com/auth/gmail.addons.execute"
-  ],
+      "https://www.googleapis.com/auth/gmail.modify",
+      "https://www.googleapis.com/auth/calendar",
+      "https://www.googleapis.com/auth/tasks",
+      "https://www.googleapis.com/auth/script.external_request",
+      "https://www.googleapis.com/auth/gmail.addons.execute",
+      "https://www.googleapis.com/auth/script.locale"
+    ],
   "runtimeVersion": "V8",
   "exceptionLogging": "NONE"
 }
