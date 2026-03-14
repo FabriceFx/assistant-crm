@@ -10,7 +10,7 @@
  * * AUTEUR          : Fabrice FAUCHEUX
  * VERSION         : 1.1.0 
  * DATE            : Mars 2026
- * ERVICES GOOGLE : GmailApp, CardService, PropertiesService, CacheService, 
+ * SERVICES GOOGLE : GmailApp, CardService, PropertiesService, CacheService, 
  * CalendarApp, Tasks, UrlFetchApp.
  * PRÉREQUIS D'INSTALLATION :
  * 1. Ajouter une clé API valide dans les Propriétés du script :
